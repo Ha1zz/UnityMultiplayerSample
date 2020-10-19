@@ -5,6 +5,10 @@ using NetworkMessages;
 using NetworkObjects;
 using System;
 using System.Text;
+using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.Diagnostics;
+using Debug = UnityEngine.Debug;
 
 public class NetworkClient : MonoBehaviour
 {
@@ -12,14 +16,20 @@ public class NetworkClient : MonoBehaviour
     public NetworkConnection m_Connection;
     public string serverIP;
     public ushort serverPort;
+    public string myID;
 
-    
+
+    List<GameObject> cubeList;
+    GameObject currentCube;
+    public GameObject cube;
+
     void Start ()
     {
         m_Driver = NetworkDriver.Create();
         m_Connection = default(NetworkConnection);
         var endpoint = NetworkEndPoint.Parse(serverIP,serverPort);
         m_Connection = m_Driver.Connect(endpoint);
+        currentCube = new GameObject();
     }
     
     void SendToServer(string message){
@@ -30,12 +40,15 @@ public class NetworkClient : MonoBehaviour
     }
 
     void OnConnect(){
-        Debug.Log("We are now connected to the server");
+        //Debug.Log("We are now connected to the server");
 
         //// Example to send a handshake message:
-        // HandshakeMsg m = new HandshakeMsg();
-        // m.player.id = m_Connection.InternalId.ToString();
-        // SendToServer(JsonUtility.ToJson(m));
+        HandshakeMsg m = new HandshakeMsg();
+        m.player.id = m_Connection.InternalId.ToString();
+        SendToServer(JsonUtility.ToJson(m));
+        Debug.Log("We are now connected to the server");
+        currentCube = (GameObject)Instantiate(cube, new Vector3(0.0f, 0.0f, 6.0f), Quaternion.identity);
+        
     }
 
     void OnData(DataStreamReader stream){
@@ -44,9 +57,13 @@ public class NetworkClient : MonoBehaviour
         string recMsg = Encoding.ASCII.GetString(bytes.ToArray());
         NetworkHeader header = JsonUtility.FromJson<NetworkHeader>(recMsg);
 
+        Debug.Log("CHECK " + recMsg);
+
         switch(header.cmd){
             case Commands.HANDSHAKE:
             HandshakeMsg hsMsg = JsonUtility.FromJson<HandshakeMsg>(recMsg);
+            currentCube.name = hsMsg.player.id;
+            myID = hsMsg.player.id;
             Debug.Log("Handshake message received!");
             break;
             case Commands.PLAYER_UPDATE:
@@ -62,6 +79,7 @@ public class NetworkClient : MonoBehaviour
             break;
         }
     }
+
 
     void Disconnect(){
         m_Connection.Disconnect(m_Driver);
@@ -106,5 +124,10 @@ public class NetworkClient : MonoBehaviour
 
             cmd = m_Connection.PopEvent(m_Driver, out stream);
         }
+
+        //PlayerUpdateMsg m = new PlayerUpdateMsg();
+        //m.player.id = m_Connection.InternalId.ToString();
+        //m.player.cubPos = currentCube.transform.position;
+        //SendToServer(JsonUtility.ToJson(m));
     }
 }

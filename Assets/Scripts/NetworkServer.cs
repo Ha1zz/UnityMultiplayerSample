@@ -5,12 +5,38 @@ using Unity.Networking.Transport;
 using NetworkMessages;
 using System;
 using System.Text;
+using System.Collections;
+using System.IO.Ports;
+using System.Diagnostics;
+using Debug = UnityEngine.Debug;
+using System.Collections.Generic;
 
 public class NetworkServer : MonoBehaviour
 {
     public NetworkDriver m_Driver;
     public ushort serverPort;
     private NativeList<NetworkConnection> m_Connections;
+
+    List<string> playerList;
+    
+
+    IEnumerator SendHandShakeToAllCient()
+    {
+        while (true)
+        {
+            Debug.Log("COROUNTINE");
+            for (int i = 0; i < m_Connections.Length; i++)
+            {
+                if (!m_Connections[i].IsCreated)
+                    continue;
+
+                HandshakeMsg m = new HandshakeMsg();
+                m.player.id = m_Connections[i].InternalId.ToString();
+                SendToClient(JsonUtility.ToJson(m), m_Connections[i]);
+            }
+            yield return new WaitForSeconds(2);
+        }
+    }
 
     void Start ()
     {
@@ -23,6 +49,8 @@ public class NetworkServer : MonoBehaviour
             m_Driver.Listen();
 
         m_Connections = new NativeList<NetworkConnection>(16, Allocator.Persistent);
+
+        StartCoroutine(SendHandShakeToAllCient());
     }
 
     void SendToClient(string message, NetworkConnection c){
@@ -38,13 +66,19 @@ public class NetworkServer : MonoBehaviour
     }
 
     void OnConnect(NetworkConnection c){
-        m_Connections.Add(c);
-        Debug.Log("Accepted a connection");
+        //m_Connections.Add(c);
+        //Debug.Log("Accepted a connection");
 
         //// Example to send a handshake message:
-        // HandshakeMsg m = new HandshakeMsg();
-        // m.player.id = c.InternalId.ToString();
-        // SendToClient(JsonUtility.ToJson(m),c);        
+        HandshakeMsg m = new HandshakeMsg();
+        m.player.id = c.InternalId.ToString();
+        var connMsg = new InitializeConnectionMSG();
+        connMsg.yourID = m.player.id;
+        SendToClient(JsonUtility.ToJson(m), c);
+        Debug.Log("Accepted a connection");
+
+
+        //StartCoroutine(SendHandShakeToAllCient());
     }
 
     void OnData(DataStreamReader stream, int i){
